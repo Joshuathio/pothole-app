@@ -1,15 +1,25 @@
 {
-  "experimentalServices": {
-    "frontend": {
-      "root": "frontend",
-      "routePrefix": "/",
-      "framework": "vite"
+  "builds": [
+    {
+      "src": "backend/app.py",
+      "use": "@vercel/python"
     },
-    "backend": {
-      "root": "backend",
-      "routePrefix": "/api",
-      "framework": "other",
-      "entrypoint": "app.py"
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
     }
-  }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "backend/app.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/dist/$1"
+    }
+  ]
 }
