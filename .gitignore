@@ -2,6 +2,7 @@
 backend/venv/
 backend/__pycache__/
 backend/.env
+backend/local-test.db
 backend/uploads/*
 backend/outputs/*
 !backend/uploads/.gitkeep
