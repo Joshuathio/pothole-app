@@ -4,7 +4,6 @@ backend/__pycache__/
 backend/.env
 backend/uploads/*
 backend/outputs/*
-backend/models/*.pkl
 !backend/uploads/.gitkeep
 !backend/outputs/.gitkeep
 
