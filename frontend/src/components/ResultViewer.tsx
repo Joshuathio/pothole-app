@@ -5,10 +5,10 @@ import { api } from "../lib/api";
 
 interface Props {
   prediction: Prediction;
-  onClose?: () => void;
+  embedded?: boolean;
 }
 
-export default function ResultViewer({ prediction }: Props) {
+export default function ResultViewer({ prediction, embedded = false }: Props) {
   const isPotholeOverall =
     prediction.potholeFrameCount > prediction.plainFrameCount;
 
@@ -19,46 +19,57 @@ export default function ResultViewer({ prediction }: Props) {
       isPothole: f.isPothole,
     })) ?? [];
 
+  const containerClasses = embedded
+    ? "bg-bg-card overflow-hidden"
+    : "bg-bg-card border border-border rounded-lg overflow-hidden";
+
   return (
-    <div className="bg-bg-card border border-border rounded-lg overflow-hidden">
-      <div className="border-b border-border px-6 py-4 flex items-center justify-between">
-        <div>
-          <h2 className="font-display font-bold uppercase tracking-wide">
-            Analysis Result
-          </h2>
-          <p className="text-xs text-neutral-500 mt-1 font-mono">
-            {prediction.originalFilename}
-          </p>
+    <div className={containerClasses}>
+      {!embedded && (
+        <div className="border-b border-border px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="font-display font-bold uppercase tracking-wide">
+              Analysis Result
+            </h2>
+            <p className="text-xs text-neutral-500 mt-1 font-mono">
+              {prediction.originalFilename}
+            </p>
+          </div>
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs uppercase font-bold tracking-wider ${
+              isPotholeOverall
+                ? "bg-danger/15 text-danger border border-danger/30"
+                : "bg-success/15 text-success border border-success/30"
+            }`}
+          >
+            {isPotholeOverall ? (
+              <>
+                <XCircle className="w-4 h-4" />
+                Pothole Detected
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                Road Clear
+              </>
+            )}
+          </div>
         </div>
-        <div
-          className={`flex items-center gap-2 px-3 py-1.5 rounded text-xs uppercase font-bold tracking-wider ${
-            isPotholeOverall
-              ? "bg-danger/15 text-danger border border-danger/30"
-              : "bg-success/15 text-success border border-success/30"
-          }`}
-        >
-          {isPotholeOverall ? (
-            <>
-              <XCircle className="w-4 h-4" />
-              Pothole Detected
-            </>
-          ) : (
-            <>
-              <CheckCircle2 className="w-4 h-4" />
-              Road Clear
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Annotated video player */}
       {prediction.outputFilename && (
-        <div className="bg-black">
+        <div className="bg-black flex justify-center">
           <video
+            key={prediction.outputFilename}
             controls
+            playsInline
+            preload="metadata"
             className="w-full max-h-[500px]"
             src={api.videoUrl(prediction.outputFilename)}
-          />
+          >
+            Your browser does not support video playback.
+          </video>
         </div>
       )}
 

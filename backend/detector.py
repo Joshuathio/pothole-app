@@ -1,11 +1,12 @@
 """ML inference module — wraps the SVM + HOG + LBP pipeline."""
 import os
+import shutil
+import subprocess
 import cv2
 import numpy as np
 import joblib
 from skimage.feature import hog, local_binary_pattern
 
-# Same hyperparameters as training notebook
 PATCH_SIZE = 64
 HOG_PIXELS_PER_CELL = (8, 8)
 HOG_CELLS_PER_BLOCK = (2, 2)
@@ -15,9 +16,35 @@ LBP_R = 2
 LBP_METHOD = "uniform"
 
 
-class PotholeDetector:
-    """Singleton-ish wrapper for the SVM model + feature extraction."""
+def reencode_to_h264(input_path: str, output_path: str) -> bool:
+    """Re-encode video to H.264 (browser-compatible) using ffmpeg.
+    Returns True on success."""
+    if not shutil.which("ffmpeg"):
+        print("WARNING: ffmpeg not found. Browser may not play the video.")
+        return False
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", input_path,
+                "-c:v", "libx264",
+                "-preset", "fast",
+                "-crf", "23",
+                "-movflags", "+faststart",
+                "-pix_fmt", "yuv420p",
+                "-an",
+                output_path,
+            ],
+            capture_output=True, timeout=300,
+        )
+        if result.returncode != 0:
+            print(f"ffmpeg stderr: {result.stderr.decode()[:500]}")
+        return result.returncode == 0
+    except Exception as e:
+        print(f"ffmpeg re-encode error: {e}")
+        return False
 
+
+class PotholeDetector:
     _instance = None
 
     def __init__(self, model_path: str, scaler_path: str):
@@ -32,7 +59,6 @@ class PotholeDetector:
             cls._instance = cls(model_path, scaler_path)
         return cls._instance
 
-    # --- Feature extraction ---
     @staticmethod
     def preprocess_patch(patch):
         if len(patch.shape) == 3:
@@ -46,15 +72,10 @@ class PotholeDetector:
 
     @staticmethod
     def extract_hog_feat(gray):
-        return hog(
-            gray,
-            orientations=HOG_ORIENTATIONS,
-            pixels_per_cell=HOG_PIXELS_PER_CELL,
-            cells_per_block=HOG_CELLS_PER_BLOCK,
-            block_norm="L2-Hys",
-            transform_sqrt=True,
-            feature_vector=True,
-        )
+        return hog(gray, orientations=HOG_ORIENTATIONS,
+                   pixels_per_cell=HOG_PIXELS_PER_CELL,
+                   cells_per_block=HOG_CELLS_PER_BLOCK,
+                   block_norm="L2-Hys", transform_sqrt=True, feature_vector=True)
 
     @staticmethod
     def extract_lbp_feat(gray):
@@ -67,17 +88,9 @@ class PotholeDetector:
         gray = self.preprocess_patch(patch)
         return np.hstack([self.extract_hog_feat(gray), self.extract_lbp_feat(gray)])
 
-    # --- Frame-level classification ---
-    def classify_frame(
-        self,
-        frame,
-        scales=(1.0, 1.5, 2.0),
-        stride_ratio=0.5,
-        roi_top_ratio=0.3,
-        agg="top_k_mean",
-        top_k=5,
-    ):
-        """Return confidence (0..1) that this frame contains a pothole."""
+    def classify_frame(self, frame, scales=(1.0, 1.5, 2.0),
+                       stride_ratio=0.5, roi_top_ratio=0.3,
+                       agg="top_k_mean", top_k=5):
         h, w = frame.shape[:2]
         roi_top = int(h * roi_top_ratio)
         all_probs = []
@@ -112,25 +125,13 @@ class PotholeDetector:
             return float(all_probs.mean())
         elif agg == "max":
             return float(all_probs.max())
-        else:  # top_k_mean
+        else:
             k = min(top_k, len(all_probs))
             return float(np.sort(all_probs)[-k:].mean())
 
-    # --- Video processing ---
-    def process_video(
-        self,
-        input_path: str,
-        output_path: str,
-        threshold: float = 0.55,
-        scales=(1.0, 1.5, 2.0),
-        frame_skip: int = 2,
-        smoothing_window: int = 5,
-        progress_callback=None,
-    ):
-        """
-        Process video frame-by-frame, write annotated output.
-        Returns dict with metadata + per-frame predictions.
-        """
+    def process_video(self, input_path, output_path, threshold=0.55,
+                      scales=(1.0, 1.5, 2.0), frame_skip=2,
+                      smoothing_window=5, progress_callback=None):
         cap = cv2.VideoCapture(input_path)
         if not cap.isOpened():
             raise RuntimeError(f"Cannot open video: {input_path}")
@@ -141,10 +142,12 @@ class PotholeDetector:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration = total_frames / fps if fps > 0 else None
 
+        # Write to temporary file first (mp4v), re-encode later to H.264 for browser
+        temp_path = output_path + ".tmp.mp4"
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+        out = cv2.VideoWriter(temp_path, fourcc, fps, (width, height))
 
-        frame_predictions = []  # for DB
+        frame_predictions = []
         confidence_history = []
         last_conf = 0.0
         frame_idx = 0
@@ -154,7 +157,6 @@ class PotholeDetector:
             if not ret:
                 break
 
-            # Classify every frame_skip-th frame
             if frame_idx % frame_skip == 0:
                 conf = self.classify_frame(frame, scales=scales)
                 confidence_history.append(conf)
@@ -162,7 +164,6 @@ class PotholeDetector:
                     confidence_history = confidence_history[-smoothing_window:]
                 last_conf = float(np.mean(confidence_history))
 
-                # Record this frame's prediction
                 frame_predictions.append({
                     "frame_index": frame_idx,
                     "timestamp_seconds": frame_idx / fps if fps > 0 else 0.0,
@@ -174,7 +175,6 @@ class PotholeDetector:
             label = "POTHOLE DETECTED" if is_pothole else "PLAIN ROAD"
             color = (0, 0, 255) if is_pothole else (0, 200, 0)
 
-            # Draw label overlay (top-left)
             text1 = f"Status: {label}"
             text2 = f"Confidence: {last_conf:.3f}"
             (tw1, th1), _ = cv2.getTextSize(text1, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
@@ -187,22 +187,22 @@ class PotholeDetector:
             cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
 
             cv2.putText(frame, text1, (20, 10 + th1 + 10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
             cv2.putText(frame, text2, (20, 10 + th1 + th2 + 25),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-            # Confidence bar
             bar_x = 20
             bar_y = 10 + th1 + th2 + 35
             bar_w_max = box_w - 30
             bar_h = 8
-            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_w_max, bar_y + bar_h),
-                         (80, 80, 80), -1)
+            cv2.rectangle(frame, (bar_x, bar_y),
+                          (bar_x + bar_w_max, bar_y + bar_h), (80, 80, 80), -1)
             filled = int(bar_w_max * min(last_conf, 1.0))
-            cv2.rectangle(frame, (bar_x, bar_y), (bar_x + filled, bar_y + bar_h), color, -1)
+            cv2.rectangle(frame, (bar_x, bar_y),
+                          (bar_x + filled, bar_y + bar_h), color, -1)
             thresh_x = bar_x + int(bar_w_max * threshold)
-            cv2.line(frame, (thresh_x, bar_y - 2), (thresh_x, bar_y + bar_h + 2),
-                    (255, 255, 255), 2)
+            cv2.line(frame, (thresh_x, bar_y - 2),
+                     (thresh_x, bar_y + bar_h + 2), (255, 255, 255), 2)
 
             out.write(frame)
             frame_idx += 1
@@ -213,7 +213,20 @@ class PotholeDetector:
         cap.release()
         out.release()
 
-        # Compute summary
+        # Re-encode to H.264 for browser playback
+        ok = reencode_to_h264(temp_path, output_path)
+        if ok:
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+        else:
+            # Fallback: rename temp to final (browser may not play, but at least file exists)
+            print("WARNING: ffmpeg failed, falling back to mp4v codec.")
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            os.rename(temp_path, output_path)
+
         confidences = [fp["confidence"] for fp in frame_predictions]
         pothole_count = sum(1 for fp in frame_predictions if fp["is_pothole"])
         plain_count = len(frame_predictions) - pothole_count
