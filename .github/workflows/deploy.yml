@@ -24,6 +24,12 @@ jobs:
           set -euo pipefail
           test -n "$VPS_HOST"
           test -n "$VPS_SSH_KEY"
+          case "$VPS_HOST" in
+            http://*|https://*|*/*|*:*)
+              echo "VPS_HOST must be a raw hostname or IP address only, for example 103.152.242.177. Do not include http://, https://, paths, or ports."
+              exit 1
+              ;;
+          esac
           mkdir -p ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519

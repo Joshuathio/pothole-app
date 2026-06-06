@@ -1,4 +1,4 @@
-# Pothole App Production Deployment Docs
+# Pothole App Production Deployment
 
 This deployment runs the pothole detection app as one monorepo on a VPS using Docker Compose.
 
