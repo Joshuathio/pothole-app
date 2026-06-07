@@ -2,7 +2,7 @@
 
 Full-stack app dengan backend Flask + frontend React (Vite + TypeScript + Tailwind) + database PostgreSQL.
 
-## Stack
+## Tech Stack
 
 | Component  | Tech                                                |
 | ---------- | --------------------------------------------------- |
