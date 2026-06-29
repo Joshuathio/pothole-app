@@ -98,7 +98,7 @@ def create_app():
         db.session.commit()
 
         # Process video
-        output_filename = f"annotated_{stored_filename}"
+        output_filename = f"annotated_{Path(stored_filename).stem}.mp4"
         output_path = os.path.join(app.config["OUTPUT_FOLDER"], output_filename)
 
         try:
