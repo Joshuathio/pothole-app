@@ -107,7 +107,7 @@ export default function AboutPage() {
         </h2>
         <div className="space-y-3 text-sm text-neutral-300 leading-relaxed">
           <p>
-            Potholes are more than a daily nuisance, they pose serious hazards
+            Potholes are more than a daily nuisance — they pose serious hazards
             to driver safety and vehicle integrity. While cities have
             traditionally relied on slow manual inspections, recent computer
             vision research has gravitated heavily toward GPU-intensive deep
@@ -117,8 +117,8 @@ export default function AboutPage() {
           <p>
             This project shifts focus back to <span className="text-accent font-bold">efficiency</span>{" "}
             and <span className="text-accent font-bold">accessibility</span>:
-            we investigate whether classical machine learning, specifically
-            HOG and LBP feature extraction with an SVM classifier, can deliver
+            we investigate whether classical machine learning — specifically
+            HOG and LBP feature extraction with an SVM classifier — can deliver
             useful pothole detection on standard CPU hardware. The motivation is
             grounded in real-world infrastructure constraints, particularly in
             developing economies like Indonesia where road maintenance budgets
