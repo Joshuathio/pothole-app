@@ -17,24 +17,24 @@ import {
 
 // === Hasil aktual training (update angka ini sesuai notebook Anda) ===
 const RESULTS = {
-  accuracy: 0.6775,
-  precision: 0.6593,
-  recall: 0.7344,
-  f1: 0.6948,
-  cvF1: 0.6948, // jika beda dari test F1, update
-  bestC: 10, // dari grid search — update sesuai output Anda
+  accuracy: 0.6696,
+  precision: 0.6479,
+  recall: 0.7433,
+  f1: 0.6923,
+  cvF1: 0.6924, // jika beda dari test F1, update
+  bestC: 0.1, // dari grid search — update sesuai output Anda
   bestGamma: "scale",
 
   // Confusion matrix [TN, FP / FN, TP] for [Plain, Pothole]
   confusionMatrix: {
-    TN: 278, // Plain predicted Plain (448 * 0.62)
-    FP: 170, // Plain predicted Pothole (448 * 0.38)
-    FN: 119, // Pothole predicted Plain (448 * 0.27)
-    TP: 329, // Pothole predicted Pothole (448 * 0.73)
+    TN: 267, // Plain predicted Plain (448 * 0.62)
+    FP: 181, // Plain predicted Pothole (448 * 0.38)
+    FN: 115, // Pothole predicted Plain (448 * 0.27)
+    TP: 333, // Pothole predicted Pothole (448 * 0.73)
   },
 
-  totalPatches: 4480, // total dataset (update sesuai notebook)
-  trainSize: 3584,
+  totalPatches: 4476, // total dataset (update sesuai notebook)
+  trainSize: 3580,
   testSize: 896,
 
   // Target dari proposal
